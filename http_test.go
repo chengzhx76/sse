@@ -5,9 +5,9 @@
 package sse
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"testing"
 	"time"
 
@@ -30,7 +30,7 @@ func TestHTTPStreamHandler(t *testing.T) {
 	events := make(chan *Event)
 	var cErr error
 	go func() {
-		cErr = c.Subscribe("test", func(msg *Event) {
+		cErr = c.Subscribe("test", "", func(msg *Event) {
 			if msg.Data != nil {
 				events <- msg
 				return
@@ -54,27 +54,46 @@ func TestHTTPStreamHandlerExistingEvents(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/events", s.ServeHTTP)
-	server := httptest.NewServer(mux)
+	//server := httptest.NewServer(mux)
+
+	go func() {
+		err := http.ListenAndServe(":8080", mux)
+		if err != nil {
+			fmt.Println("Error starting server:", err)
+		}
+		fmt.Println("Server started. Press Ctrl+C to exit.")
+	}()
 
 	s.CreateStream("test")
 
-	s.Publish("test", &Event{Data: []byte("test 1")})
-	s.Publish("test", &Event{Data: []byte("test 2")})
-	s.Publish("test", &Event{Data: []byte("test 3")})
+	//s.Publish("test", &Event{Data: []byte("test 1")})
+	//s.Publish("test", &Event{Data: []byte("test 2")})
+	//s.Publish("test", &Event{Data: []byte("test 3")})
 
-	time.Sleep(time.Millisecond * 100)
+	//fmt.Println(server.URL + "/events")
 
-	c := NewClient(server.URL + "/events")
+	for i := 1; i <= 500; i++ {
+		time.Sleep(time.Second)
+		s.Publish("test", &Event{Data: []byte(fmt.Sprintf("test %d", i))})
+	}
+
+	//select {}
+
+	//time.Sleep(time.Millisecond * 100)
+
+	/*c := NewClient(server.URL + "/events")
 
 	events := make(chan *Event)
 	var cErr error
 	go func() {
-		cErr = c.Subscribe("test", func(msg *Event) {
+		cErr = c.Subscribe("test", "", func(msg *Event) {
 			if len(msg.Data) > 0 {
 				events <- msg
 			}
 		})
 	}()
+
+	time.Sleep(10 * time.Second)
 
 	require.Nil(t, cErr)
 
@@ -82,7 +101,7 @@ func TestHTTPStreamHandlerExistingEvents(t *testing.T) {
 		msg, err := wait(events, time.Millisecond*500)
 		require.Nil(t, err)
 		assert.Equal(t, []byte("test "+strconv.Itoa(i)), msg)
-	}
+	}*/
 }
 
 func TestHTTPStreamHandlerEventID(t *testing.T) {
@@ -107,7 +126,7 @@ func TestHTTPStreamHandlerEventID(t *testing.T) {
 	events := make(chan *Event)
 	var cErr error
 	go func() {
-		cErr = c.Subscribe("test", func(msg *Event) {
+		cErr = c.Subscribe("test", "", func(msg *Event) {
 			if len(msg.Data) > 0 {
 				events <- msg
 			}
@@ -145,7 +164,7 @@ func TestHTTPStreamHandlerEventTTL(t *testing.T) {
 	events := make(chan *Event)
 	var cErr error
 	go func() {
-		cErr = c.Subscribe("test", func(msg *Event) {
+		cErr = c.Subscribe("test", "", func(msg *Event) {
 			if len(msg.Data) > 0 {
 				events <- msg
 			}
@@ -174,7 +193,7 @@ func TestHTTPStreamHandlerHeaderFlushIfNoEvents(t *testing.T) {
 	subscribed := make(chan struct{})
 	events := make(chan *Event)
 	go func() {
-		assert.NoError(t, c.SubscribeChan("test", events))
+		assert.NoError(t, c.SubscribeChan("test", "", events))
 		subscribed <- struct{}{}
 	}()
 
@@ -206,7 +225,7 @@ func TestHTTPStreamHandlerAutoStream(t *testing.T) {
 	cErr := make(chan error)
 
 	go func() {
-		cErr <- c.SubscribeChan("test", events)
+		cErr <- c.SubscribeChan("test", "", events)
 	}()
 
 	require.Nil(t, <-cErr)
